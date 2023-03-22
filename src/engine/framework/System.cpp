@@ -51,6 +51,36 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/file.h>
 #endif
 
+#if defined(DAEMON_USE_FLOAT_EXCEPTIONS)
+	#if defined(__USE_GNU)
+		#include <cfenv>
+		#define DAEMON_USE_FLOAT_EXCEPTIONS_AVAILABLE
+	#elif defined (__APPLE__)
+		#if defined(DAEMON_ARCH_amd64) || defined(DAEMON_ARCH_arm64)
+			#include <cfenv>
+			#include <csignal>
+			#define DAEMON_USE_FLOAT_EXCEPTIONS_AVAILABLE
+		#else
+			#warning Missing floating point exception implementation.
+		#endif
+	#elif defined(_MSC_VER)
+		#include <cfloat>
+		#define DAEMON_USE_FLOAT_EXCEPTIONS_AVAILABLE
+	#endif
+#endif
+
+#if defined(DAEMON_USE_FLOAT_EXCEPTIONS_AVAILABLE)
+	static Cvar::Cvar<bool> common_floatExceptions_invalid("common.floatExceptions.invalid",
+		"enable floating point exception for operation with NaN",
+		Cvar::INIT, false);
+	static Cvar::Cvar<bool> common_floatExceptions_divByZero("common.floatExceptions.divByZero",
+		"enable floating point exception for division-by-zero operation",
+		Cvar::INIT, false);
+	static Cvar::Cvar<bool> common_floatExceptions_overflow("common.floatExceptions.overflow",
+		"enable floating point exception for operation producing an overflow",
+		Cvar::INIT, false);
+#endif
+
 namespace Sys {
 static Cvar::Cvar<bool> cvar_common_shutdownOnDrop("common.shutdownOnDrop", "shut down engine on game drop", Cvar::TEMPORARY, false);
 
@@ -352,6 +382,119 @@ static void CloseSingletonSocket()
 	try {
 		FS::HomePath::DeleteFile(std::string("lock") + Application::GetTraits().uniqueHomepathSuffix);
 	} catch (std::system_error&) {}
+#endif
+}
+
+#if defined(DAEMON_USE_FLOAT_EXCEPTIONS_AVAILABLE) && defined(__APPLE__)
+static void FloatingPointExceptionSignalHandler( int sig, siginfo_t *sip, void* /* scp */ )
+{
+#if defined(DAEMON_ARCH_arm64)
+	if ( sip->si_code == ILL_ILLTRP )
+	{
+		Sys::Error( "Illegal trap" );
+	}
+#endif
+
+	Sys::Error( "Floating point exception" );
+}
+#endif
+
+static void SetFloatingPointExceptions()
+{
+#if defined(DAEMON_USE_FLOAT_EXCEPTIONS_AVAILABLE)
+	#if defined(__USE_GNU)
+		int exceptions = 0;
+	#elif defined(__APPLE__)
+		int exceptions = 0;
+		int mexceptions = 0;
+	#elif defined(_MSC_VER)
+		unsigned int exceptions = 0;
+	#endif
+
+	// Operations with NaN.
+	if (common_floatExceptions_invalid.Get())
+	{
+		#if defined(__USE_GNU)
+			exceptions |= FE_INVALID;
+		#elif defined(__APPLE__)
+			#if defined(DAEMON_ARCH_amd64)
+				exceptions |= FE_INVALID;
+				mexceptions |= _MM_MASK_INVALID;
+			#elif defined(DAEMON_ARCH_arm64)
+				exceptions |= __fpcr_trap_invalid;
+			#endif
+		#elif defined(_MSC_VER)
+			exceptions |= _EM_INVALID
+		#endif
+	}
+
+	// Division by zero.
+	if (common_floatExceptions_divByZero.Get())
+	{
+		#if defined(__USE_GNU)
+			exceptions |= FE_DIVBYZERO;
+		#elif defined(__APPLE__)
+			#if defined(DAEMON_ARCH_amd64)
+				exceptions |= FE_DIVBYZERO;
+				mexceptions |= _MM_MASK_DIV_ZERO;
+			#elif defined(DAEMON_ARCH_arm64)
+				exceptions |= __fpcr_trap_divbyzero;
+			#endif
+		#elif defined(_MSC_VER)
+			exceptions |= _EM_ZERODIVIDE;
+		#endif
+	}
+
+	// Operations producing an overflow.
+	if (common_floatExceptions_overflow.Get())
+	{
+		#if defined(__USE_GNU)
+			exceptions |= FE_OVERFLOW;
+		#elif defined(__APPLE__)
+			#if defined(DAEMON_ARCH_amd64)
+				exceptions |= FE_OVERFLOW;
+				mexceptions |= _MM_MASK_OVERFLOW;
+			#elif defined(DAEMON_ARCH_arm64)
+				exceptions |= __fpcr_trap_overflow;
+			#endif
+		#elif defined(_MSC_VER)
+			exceptions |= _EM_OVERFLOW;
+		#endif
+	}
+
+	#if defined(__USE_GNU)
+		// https://www.gnu.org/savannah-checkouts/gnu/libc/manual/html_node/Control-Functions.html
+		feenableexcept(exceptions);
+	#elif defined(__APPLE__)
+		// https://stackoverflow.com/a/15302624
+		// https://stackoverflow.com/a/71792418
+		fenv_t env;
+		fegetenv( &env );
+
+		#if defined(DAEMON_ARCH_amd64)
+			env.__control &= ~exceptions;
+			env.__mxcsr &= ~mexceptions;
+		#elif defined(DAEMON_ARCH_arm64)
+			env.__fpcr |= exceptions;
+		#endif
+
+		fesetenv( &env );
+
+		struct sigaction act;
+		act.sa_sigaction = FloatingPointExceptionSignalHandler;
+		sigemptyset( &act.sa_mask );
+		act.sa_flags = SA_SIGINFO;
+
+		#if defined(DAEMON_ARCH_amd64)
+			sigaction(SIGFPE, &act, NULL);
+		#elif defined(DAEMON_ARCH_arm64)
+			sigaction(SIGILL, &act, NULL);
+		#endif
+	#elif defined(_MSC_VER)
+		// https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2012/c9676k6h(v=vs.110)
+		unsigned int current;
+		_controlfp_s(&current, exceptions, _MCW_EM);
+	#endif
 #endif
 }
 
@@ -746,6 +889,8 @@ static void Init(int argc, char** argv)
 
 	// Set cvars set from the command line having the Cvar::INIT flag
 	SetCvarsWithInitFlag(cmdlineArgs);
+
+	SetFloatingPointExceptions();
 
 	// Initialize the filesystem. For pakpaths, the libpath is added first and has the
 	// lowest priority, while the homepath is added last and has the highest.
