@@ -98,14 +98,14 @@ void main()
 	// Compute the diffuse term.
 	vec4 diffuse = texture2D(u_DiffuseMap, texCoords);
 
-	// Apply vertex blend operation like: alphaGen vertex.
-	diffuse *= var_Color;
-
 	if(abs(diffuse.a + u_AlphaThreshold) <= 1.0)
 	{
 		discard;
 		return;
 	}
+
+	// Apply vertex blend operation like: alphaGen vertex.
+	diffuse *= var_Color;
 
 	// Compute normal in world space from normalmap.
 	#if defined(r_normalMapping)
