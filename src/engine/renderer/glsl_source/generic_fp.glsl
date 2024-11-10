@@ -61,6 +61,8 @@ void	main()
 
 	vec4 color = texture2D(u_ColorMap, var_TexCoords);
 
+	color *= var_Color;
+
 	if( abs(color.a + u_AlphaThreshold) <= 1.0 )
 	{
 		discard;
@@ -72,8 +74,6 @@ void	main()
 	float fadeDepth = 0.5 * var_FadeDepth.x / var_FadeDepth.y + 0.5;
 	color.a *= smoothstep(gl_FragCoord.z, fadeDepth, depth);
 #endif
-
-	color *= var_Color;
 
 #if !defined(GENERIC_2D)
 	color.rgb *= u_InverseLightFactor;
