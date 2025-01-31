@@ -598,6 +598,7 @@ static void SVC_Info( const netadr_t& from, const Cmd::Args& args )
 	}
 
 	info_map["gamename"] = GAMENAME_STRING;  // Arnout: to be able to filter out Quake servers
+	info_map["version"] = com_engineVersion.Get();
 
 	Net::OutOfBandPrint( netsrc_t::NS_SERVER, from, "infoResponse\n%s", InfoMapToString( info_map ) );
 }

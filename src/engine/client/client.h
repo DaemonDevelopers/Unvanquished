@@ -253,12 +253,15 @@ enum class pingStatus_t
 #define MAX_FEATLABEL_CHARS 32
 struct serverInfo_t
 {
+	static const int MAX_VERSION_LENGTH = 32;
+
 	netadr_t adr;
 	char     hostName[ MAX_NAME_LENGTH ];
 	int      load;
 	char     mapName[ MAX_NAME_LENGTH ];
 	char     game[ MAX_NAME_LENGTH ];
 	char     label[ MAX_FEATLABEL_CHARS ]; // for featured servers, nullptr otherwise
+	char version[MAX_VERSION_LENGTH];
 	netadrtype_t netType;
 	int      clients;
 	int      bots;
