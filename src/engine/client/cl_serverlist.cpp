@@ -92,6 +92,7 @@ static void CL_InitServerInfo( serverInfo_t *server, netadr_t *address )
 	server->pingAttempts = 0;
 	server->ping = -1;
 	server->game[ 0 ] = '\0';
+	server->version[0] = '\0';
 	server->netType = netadrtype_t::NA_BOT;
 }
 
@@ -496,6 +497,7 @@ static void CL_SetServerInfo( serverInfo_t *server, const char *info, pingStatus
 		Q_strncpyz( server->mapName, Info_ValueForKey( info, "mapname" ), MAX_NAME_LENGTH );
 		server->maxClients = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
 		Q_strncpyz( server->game, Info_ValueForKey( info, "game" ), MAX_NAME_LENGTH );
+		Q_strncpyz( server->version, Info_ValueForKey( info, "version" ), serverInfo_t::MAX_VERSION_LENGTH );
 		server->netType = Util::enum_cast<netadrtype_t>(atoi(Info_ValueForKey(info, "nettype")));
 		server->minPing = atoi( Info_ValueForKey( info, "minping" ) );
 		server->maxPing = atoi( Info_ValueForKey( info, "maxping" ) );
@@ -537,7 +539,6 @@ void CL_ServerInfoPacket( const netadr_t& from, msg_t *msg )
 {
 	int  i, type;
 	char info[ MAX_INFO_STRING ];
-//	char*   str;
 	char *infoString;
 	int  prot;
 	const char *gameName;
@@ -649,6 +650,7 @@ void CL_ServerInfoPacket( const netadr_t& from, msg_t *msg )
 	cls.localServers[ i ].pingStatus = pingStatus_t::WAITING;
 	cls.localServers[ i ].pingAttempts = 0;
 	cls.localServers[ i ].game[ 0 ] = '\0';
+	cls.localServers[ i ].version[0] = '\0';
 	cls.localServers[ i ].netType = from.type;
 	cls.localServers[ i ].needpass = 0;
 	cls.localServers[ i ].gameName[ 0 ] = '\0'; // Arnout
