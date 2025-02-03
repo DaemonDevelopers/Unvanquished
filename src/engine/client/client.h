@@ -250,27 +250,16 @@ enum class pingStatus_t
 	TIMEOUT,
 };
 
-#define MAX_FEATLABEL_CHARS 32
 struct serverInfo_t
 {
 	netadr_t adr;
-	char     hostName[ MAX_NAME_LENGTH ];
-	int      load;
-	char     mapName[ MAX_NAME_LENGTH ];
-	char     game[ MAX_NAME_LENGTH ];
 	char     label[ MAX_FEATLABEL_CHARS ]; // for featured servers, nullptr otherwise
-	netadrtype_t netType;
-	int      clients;
-	int      bots;
-	int      maxClients;
-	int      minPing;
-	int      maxPing;
+	serverResponseProtocol_t responseProto;
 	pingStatus_t pingStatus;
 	int      ping;
 	int      pingAttempts;
 	bool visible;
-	int      needpass;
-	char     gameName[ MAX_NAME_LENGTH ]; // Arnout
+	std::string infoString;
 };
 
 struct clientStatic_t
